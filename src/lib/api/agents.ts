@@ -81,12 +81,13 @@ export async function listAgents(params?: {
   limit?: number;
   offset?: number;
 }): Promise<Agent[]> {
-  const { data } = await apiClient.get<ApiSuccess<Agent[]>>('/agents', {
+  const { data } = await apiClient.get<any>('/agents', {
     params,
   });
 
-  if (data.success && data.data) {
-    return data.data;
+  // Backend returns { success: true, agents: [...], count: N }
+  if (data.success && data.agents) {
+    return data.agents;
   }
 
   return [];
@@ -97,8 +98,14 @@ export async function listAgents(params?: {
  * GET /api/v1/agents/:id
  */
 export async function getAgent(id: string): Promise<Agent> {
-  const { data } = await apiClient.get<ApiSuccess<Agent>>(`/agents/${id}`);
+  const { data } = await apiClient.get<any>(`/agents/${id}`);
 
+  // Backend returns { success: true, agent: {...} }
+  if (data.success && data.agent) {
+    return data.agent;
+  }
+
+  // Fallback to nested data format
   if (data.success && data.data) {
     return data.data;
   }
@@ -113,11 +120,17 @@ export async function getAgent(id: string): Promise<Agent> {
 export async function createAgent(
   agentData: CreateAgentRequest
 ): Promise<Agent> {
-  const { data } = await apiClient.post<ApiSuccess<Agent>>(
+  const { data } = await apiClient.post<any>(
     '/agents',
     agentData
   );
 
+  // Backend returns { success: true, agent: {...} }
+  if (data.success && data.agent) {
+    return data.agent;
+  }
+
+  // Fallback to nested data format
   if (data.success && data.data) {
     return data.data;
   }
@@ -133,11 +146,17 @@ export async function updateAgent(
   id: string,
   updates: UpdateAgentRequest
 ): Promise<Agent> {
-  const { data} = await apiClient.put<ApiSuccess<Agent>>(
+  const { data } = await apiClient.put<any>(
     `/agents/${id}`,
     updates
   );
 
+  // Backend returns { success: true, agent: {...} }
+  if (data.success && data.agent) {
+    return data.agent;
+  }
+
+  // Fallback to nested data format
   if (data.success && data.data) {
     return data.data;
   }
@@ -161,11 +180,17 @@ export async function updateAgentStatus(
   id: string,
   status: 'draft' | 'active' | 'paused' | 'archived'
 ): Promise<Agent> {
-  const { data } = await apiClient.put<ApiSuccess<Agent>>(
+  const { data } = await apiClient.put<any>(
     `/agents/${id}/status`,
     { status }
   );
 
+  // Backend returns { success: true, agent: {...} }
+  if (data.success && data.agent) {
+    return data.agent;
+  }
+
+  // Fallback to nested data format
   if (data.success && data.data) {
     return data.data;
   }

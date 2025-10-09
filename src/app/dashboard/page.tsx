@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UsersIcon, MessageSquareIcon, DollarSignIcon, ActivityIcon } from 'lucide-react';
+import { UsersIcon, MessageSquareIcon, DollarSignIcon, ActivityIcon, PlayIcon } from 'lucide-react';
 
 interface OverviewStats {
   totalAgents: number;

@@ -1,8 +1,11 @@
-import { apiClient, ApiSuccess } from './client';
+import { apiClient, ApiSuccess, getErrorMessage as getErrorMessageFromClient } from './client';
 
 /**
  * Authentication API
  */
+
+// Re-export getErrorMessage for convenience
+export { getErrorMessageFromClient as getErrorMessage };
 
 export interface User {
   email: string;
@@ -33,16 +36,16 @@ export interface AuthResponse {
  * POST /api/v1/auth/login
  */
 export async function login(credentials: LoginRequest): Promise<AuthResponse> {
-  const { data } = await apiClient.post<ApiSuccess<AuthResponse>>(
+  const { data } = await apiClient.post<any>(
     '/auth/login',
     credentials
   );
 
   // Store token and user in localStorage
-  if (data.success && data.data) {
-    localStorage.setItem('token', data.data.token);
-    localStorage.setItem('user', JSON.stringify(data.data.user));
-    return data.data;
+  if (data.success && data.user && data.token) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    return { user: data.user, token: data.token };
   }
 
   throw new Error('Login failed');
@@ -55,16 +58,16 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
 export async function register(
   userData: RegisterRequest
 ): Promise<AuthResponse> {
-  const { data } = await apiClient.post<ApiSuccess<AuthResponse>>(
+  const { data } = await apiClient.post<any>(
     '/auth/register',
     userData
   );
 
   // Store token and user in localStorage
-  if (data.success && data.data) {
-    localStorage.setItem('token', data.data.token);
-    localStorage.setItem('user', JSON.stringify(data.data.user));
-    return data.data;
+  if (data.success && data.user && data.token) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    return { user: data.user, token: data.token };
   }
 
   throw new Error('Registration failed');
