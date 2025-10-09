@@ -1,0 +1,186 @@
+import { apiClient, ApiSuccess } from './client';
+
+/**
+ * Agents API
+ */
+
+export interface Agent {
+  _id: string;
+  agentId: string;
+  name: string;
+  phoneNumber: string;
+  provider: 'telnyx' | 'vonage';
+  systemPrompt: string;
+  actions: AgentAction[];
+  dataFields?: DataFieldDefinition[];
+  promptVariables?: Record<string, string>;
+  status: 'draft' | 'active' | 'paused' | 'archived';
+  metadata: {
+    totalConversations: number;
+    totalMessages: number;
+    totalCost: number;
+    lastActiveAt?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentAction {
+  id: string;
+  type: 'URL_CALL' | 'STOP' | 'FORM_SUBMIT' | 'TRANSFER' | 'AGENT_CALL';
+  name: string;
+  description?: string;
+  condition?: string;
+  runOneTime?: boolean;
+  url?: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: Record<string, any>;
+  transferNumber?: string;
+  targetAgentId?: string;
+  payload?: Record<string, any>;
+}
+
+export interface DataFieldDefinition {
+  key: string;
+  label?: string;
+  type?: 'string' | 'number' | 'boolean' | 'date' | 'array' | 'object';
+  required?: boolean;
+  defaultValue?: any;
+  description?: string;
+}
+
+export interface CreateAgentRequest {
+  name: string;
+  phoneNumber: string;
+  provider: 'telnyx' | 'vonage';
+  systemPrompt: string;
+  actions?: AgentAction[];
+  dataFields?: DataFieldDefinition[];
+  promptVariables?: Record<string, string>;
+  status?: 'draft' | 'active';
+}
+
+export interface UpdateAgentRequest {
+  name?: string;
+  phoneNumber?: string;
+  provider?: 'telnyx' | 'vonage';
+  systemPrompt?: string;
+  actions?: AgentAction[];
+  dataFields?: DataFieldDefinition[];
+  promptVariables?: Record<string, string>;
+  status?: 'draft' | 'active' | 'paused' | 'archived';
+}
+
+/**
+ * List all agents
+ * GET /api/v1/agents
+ */
+export async function listAgents(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<Agent[]> {
+  const { data } = await apiClient.get<ApiSuccess<Agent[]>>('/agents', {
+    params,
+  });
+
+  if (data.success && data.data) {
+    return data.data;
+  }
+
+  return [];
+}
+
+/**
+ * Get agent by ID
+ * GET /api/v1/agents/:id
+ */
+export async function getAgent(id: string): Promise<Agent> {
+  const { data } = await apiClient.get<ApiSuccess<Agent>>(`/agents/${id}`);
+
+  if (data.success && data.data) {
+    return data.data;
+  }
+
+  throw new Error('Agent not found');
+}
+
+/**
+ * Create new agent
+ * POST /api/v1/agents
+ */
+export async function createAgent(
+  agentData: CreateAgentRequest
+): Promise<Agent> {
+  const { data } = await apiClient.post<ApiSuccess<Agent>>(
+    '/agents',
+    agentData
+  );
+
+  if (data.success && data.data) {
+    return data.data;
+  }
+
+  throw new Error('Failed to create agent');
+}
+
+/**
+ * Update agent
+ * PUT /api/v1/agents/:id
+ */
+export async function updateAgent(
+  id: string,
+  updates: UpdateAgentRequest
+): Promise<Agent> {
+  const { data} = await apiClient.put<ApiSuccess<Agent>>(
+    `/agents/${id}`,
+    updates
+  );
+
+  if (data.success && data.data) {
+    return data.data;
+  }
+
+  throw new Error('Failed to update agent');
+}
+
+/**
+ * Delete agent
+ * DELETE /api/v1/agents/:id
+ */
+export async function deleteAgent(id: string): Promise<void> {
+  await apiClient.delete(`/agents/${id}`);
+}
+
+/**
+ * Update agent status
+ * PUT /api/v1/agents/:id/status
+ */
+export async function updateAgentStatus(
+  id: string,
+  status: 'draft' | 'active' | 'paused' | 'archived'
+): Promise<Agent> {
+  const { data } = await apiClient.put<ApiSuccess<Agent>>(
+    `/agents/${id}/status`,
+    { status }
+  );
+
+  if (data.success && data.data) {
+    return data.data;
+  }
+
+  throw new Error('Failed to update agent status');
+}
+
+/**
+ * Get agent webhook URL
+ */
+export function getAgentWebhookUrl(
+  agentId: string,
+  provider: 'telnyx' | 'vonage'
+): string {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_URL || 'https://sms-agent-api.up.railway.app';
+  return `${baseUrl}/webhooks/sms/agent/${agentId}/${provider}`;
+}
