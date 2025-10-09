@@ -2,11 +2,19 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MessageSquareIcon, UserIcon, PhoneIcon, ClockIcon, PlusIcon } from 'lucide-react';
+import { MessageSquareIcon, PhoneIcon, PlusIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { listConversations, startConversation, type Conversation } from '@/lib/api/conversations';
 import { listAgents, type Agent } from '@/lib/api/agents';
@@ -216,105 +224,73 @@ export default function ConversationsPage() {
       </div>
 
       {/* Conversations List */}
-      {isLoading ? (
-        <div className="grid gap-4">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="h-6 bg-gray-200 rounded animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 bg-gray-200 rounded animate-pulse" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : conversations && conversations.length > 0 ? (
-        <div className="grid gap-4">
-          {conversations.map((conversation) => (
-            <Card key={conversation._id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2">
-                      <MessageSquareIcon className="h-5 w-5 text-blue-600" />
-                      Conversation {conversation.conversationId.slice(0, 8)}
-                    </CardTitle>
-                    <CardDescription className="flex items-center gap-4">
-                      <span className="flex items-center gap-1">
-                        <PhoneIcon className="h-4 w-4" />
-                        {conversation.userPhone}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <UserIcon className="h-4 w-4" />
-                        Agent: {conversation.agentPhone}
-                      </span>
-                    </CardDescription>
-                  </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      statusColors[conversation.status]
-                    }`}
-                  >
-                    {conversation.status.replace('_', ' ')}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Messages</p>
-                    <p className="font-medium">{conversation.metadata.messageCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Cost</p>
-                    <p className="font-medium">
-                      ${conversation.metadata.totalCost.toFixed(4)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Avg Response</p>
-                    <p className="font-medium">
-                      {(conversation.metadata.avgResponseTime / 1000).toFixed(1)}s
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 flex items-center gap-1">
-                      <ClockIcon className="h-3 w-3" />
-                      Started
-                    </p>
-                    <p className="font-medium">
-                      {format(new Date(conversation.createdAt), 'MMM d, h:mm a')}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <a
-                    href={`/dashboard/conversations/${conversation._id}`}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    View Details →
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
+      <div className="rounded-md border">
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-500">Loading conversations...</p>
+          </div>
+        ) : conversations && conversations.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User Phone</TableHead>
+                <TableHead>Agent</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Messages</TableHead>
+                <TableHead>Cost</TableHead>
+                <TableHead>Started</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {conversations.map((conversation) => (
+                <TableRow key={conversation._id}>
+                  <TableCell className="font-mono text-sm">
+                    {conversation.userPhone}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {conversation.agentPhone}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        statusColors[conversation.status]
+                      }`}
+                    >
+                      {conversation.status.replace('_', ' ')}
+                    </span>
+                  </TableCell>
+                  <TableCell>{conversation.metadata.messageCount}</TableCell>
+                  <TableCell>${conversation.metadata.totalCost.toFixed(4)}</TableCell>
+                  <TableCell>
+                    {format(new Date(conversation.createdAt), 'MMM d, h:mm a')}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      href={`/dashboard/conversations/${conversation.conversationId}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      View →
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="py-12 text-center">
             <MessageSquareIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No conversations found
             </h3>
-            <p className="text-gray-600">
+            <p className="text-gray-600 mb-4">
               {statusFilter !== 'all'
                 ? `No ${statusFilter} conversations at the moment`
                 : 'Start by creating an agent and sending some SMS messages'}
             </p>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
