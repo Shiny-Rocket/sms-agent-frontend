@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageSquareIcon, PhoneIcon, PlusIcon, SearchIcon } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { listConversations, startConversation, type Conversation } from '@/lib/api/conversations';
@@ -41,16 +42,15 @@ import { useRouter } from 'next/navigation';
 export default function ConversationsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string>('');
   const [initialMessage, setInitialMessage] = useState<string>('');
 
-  const { data: conversations, isLoading } = useQuery({
-    queryKey: ['conversations', statusFilter],
-    queryFn: () => listConversations(statusFilter === 'all' ? {} : { status: statusFilter }),
+  const { data: allConversations, isLoading } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: () => listConversations({}),
   });
 
   const { data: agents } = useQuery({
@@ -78,21 +78,37 @@ export default function ConversationsPage() {
     },
   });
 
-  // Filter conversations based on search query
-  const filteredConversations = useMemo(() => {
-    if (!conversations) return [];
-    if (!searchQuery.trim()) return conversations;
+  // Filter conversations by status and search query
+  const getFilteredConversations = (status?: string) => {
+    if (!allConversations) return [];
 
-    const query = searchQuery.toLowerCase();
-    return conversations.filter(
-      (conversation) =>
-        conversation.conversationId.toLowerCase().includes(query) ||
-        conversation.agentId?.toString().toLowerCase().includes(query) ||
-        conversation.userPhone.includes(query) ||
-        conversation.agentPhone.includes(query) ||
-        conversation.status.toLowerCase().includes(query)
-    );
-  }, [conversations, searchQuery]);
+    let filtered = allConversations;
+
+    // Filter by status if provided
+    if (status) {
+      filtered = filtered.filter(c => c.status === status);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (conversation) =>
+          conversation.conversationId.toLowerCase().includes(query) ||
+          conversation.agentId?.toString().toLowerCase().includes(query) ||
+          conversation.userPhone.includes(query) ||
+          conversation.agentPhone.includes(query) ||
+          conversation.status.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  };
+
+  const allFiltered = useMemo(() => getFilteredConversations(), [allConversations, searchQuery]);
+  const activeFiltered = useMemo(() => getFilteredConversations('active'), [allConversations, searchQuery]);
+  const completedFiltered = useMemo(() => getFilteredConversations('completed'), [allConversations, searchQuery]);
+  const waitingFiltered = useMemo(() => getFilteredConversations('waiting_hitl'), [allConversations, searchQuery]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
@@ -205,54 +221,37 @@ export default function ConversationsPage() {
         </Dialog>
       </div>
 
-      {/* Status Filter Tabs */}
-      <div className="mb-6 flex gap-2">
-        <Button
-          variant={statusFilter === 'all' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('all')}
-        >
-          All
-        </Button>
-        <Button
-          variant={statusFilter === 'active' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('active')}
-        >
-          Active
-        </Button>
-        <Button
-          variant={statusFilter === 'completed' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('completed')}
-        >
-          Completed
-        </Button>
-        <Button
-          variant={statusFilter === 'waiting_hitl' ? 'default' : 'outline'}
-          onClick={() => setStatusFilter('waiting_hitl')}
-        >
-          Waiting HITL
-        </Button>
-      </div>
+      <Tabs defaultValue="all" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="waiting_hitl">Waiting HITL</TabsTrigger>
+        </TabsList>
 
-      {/* Search and List */}
-      <div className="bg-white rounded-lg border">
-        <div className="p-4 border-b">
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Search Bar */}
+        <div className="bg-white rounded-lg border">
+          <div className="p-4 border-b">
+            <div className="relative">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
-        </div>
 
-        {isLoading ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">Loading conversations...</p>
-          </div>
-        ) : filteredConversations && filteredConversations.length > 0 ? (
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <p className="text-gray-500">Loading conversations...</p>
+            </div>
+          ) : (
+            <>
+              <TabsContent value="all" className="mt-0">
+                {allFiltered && allFiltered.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
@@ -267,7 +266,7 @@ export default function ConversationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredConversations.map((conversation) => (
+              {allFiltered.map((conversation) => (
                 <TableRow key={conversation._id}>
                   <TableCell className="font-mono text-xs">
                     {conversation.conversationId.slice(0, 8)}...
@@ -296,20 +295,198 @@ export default function ConversationsPage() {
               ))}
             </TableBody>
           </Table>
-        ) : (
-          <div className="py-12 text-center">
-            <MessageSquareIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No conversations found
-            </h3>
-            <p className="text-gray-600 mb-4">
-              {searchQuery
-                ? 'No conversations match your search'
-                : 'Start by creating an agent and sending some SMS messages'}
-            </p>
-          </div>
-        )}
-      </div>
+                ) : (
+                  <div className="py-12 text-center">
+                    <MessageSquareIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No conversations found
+                    </h3>
+                    <p className="text-gray-600">
+                      {searchQuery
+                        ? 'No conversations match your search'
+                        : 'Start by creating an agent and sending some SMS messages'}
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="active" className="mt-0">
+                {activeFiltered && activeFiltered.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Conversation ID</TableHead>
+                        <TableHead>Agent ID</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Messages</TableHead>
+                        <TableHead>Started</TableHead>
+                        <TableHead>Recent</TableHead>
+                        <TableHead>Cost</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activeFiltered.map((conversation) => (
+                        <TableRow key={conversation._id}>
+                          <TableCell className="font-mono text-xs">
+                            {conversation.conversationId.slice(0, 8)}...
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {conversation.agentId?.toString().slice(0, 8) || 'N/A'}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(conversation.status)}</TableCell>
+                          <TableCell>{conversation.metadata.messageCount}</TableCell>
+                          <TableCell>
+                            {format(new Date(conversation.createdAt), 'MMM d, h:mm a')}
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: true })}
+                          </TableCell>
+                          <TableCell>${conversation.metadata.totalCost.toFixed(4)}</TableCell>
+                          <TableCell className="text-right">
+                            <Link
+                              href={`/dashboard/conversations/${conversation.conversationId}`}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View →
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="py-12 text-center">
+                    <MessageSquareIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No active conversations
+                    </h3>
+                    <p className="text-gray-600">
+                      {searchQuery ? 'No active conversations match your search' : 'No active conversations at the moment'}
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="completed" className="mt-0">
+                {completedFiltered && completedFiltered.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Conversation ID</TableHead>
+                        <TableHead>Agent ID</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Messages</TableHead>
+                        <TableHead>Started</TableHead>
+                        <TableHead>Recent</TableHead>
+                        <TableHead>Cost</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {completedFiltered.map((conversation) => (
+                        <TableRow key={conversation._id}>
+                          <TableCell className="font-mono text-xs">
+                            {conversation.conversationId.slice(0, 8)}...
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {conversation.agentId?.toString().slice(0, 8) || 'N/A'}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(conversation.status)}</TableCell>
+                          <TableCell>{conversation.metadata.messageCount}</TableCell>
+                          <TableCell>
+                            {format(new Date(conversation.createdAt), 'MMM d, h:mm a')}
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: true })}
+                          </TableCell>
+                          <TableCell>${conversation.metadata.totalCost.toFixed(4)}</TableCell>
+                          <TableCell className="text-right">
+                            <Link
+                              href={`/dashboard/conversations/${conversation.conversationId}`}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View →
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="py-12 text-center">
+                    <MessageSquareIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No completed conversations
+                    </h3>
+                    <p className="text-gray-600">
+                      {searchQuery ? 'No completed conversations match your search' : 'No completed conversations yet'}
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="waiting_hitl" className="mt-0">
+                {waitingFiltered && waitingFiltered.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Conversation ID</TableHead>
+                        <TableHead>Agent ID</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Messages</TableHead>
+                        <TableHead>Started</TableHead>
+                        <TableHead>Recent</TableHead>
+                        <TableHead>Cost</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {waitingFiltered.map((conversation) => (
+                        <TableRow key={conversation._id}>
+                          <TableCell className="font-mono text-xs">
+                            {conversation.conversationId.slice(0, 8)}...
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {conversation.agentId?.toString().slice(0, 8) || 'N/A'}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(conversation.status)}</TableCell>
+                          <TableCell>{conversation.metadata.messageCount}</TableCell>
+                          <TableCell>
+                            {format(new Date(conversation.createdAt), 'MMM d, h:mm a')}
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: true })}
+                          </TableCell>
+                          <TableCell>${conversation.metadata.totalCost.toFixed(4)}</TableCell>
+                          <TableCell className="text-right">
+                            <Link
+                              href={`/dashboard/conversations/${conversation.conversationId}`}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              View →
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="py-12 text-center">
+                    <MessageSquareIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No conversations waiting for HITL
+                    </h3>
+                    <p className="text-gray-600">
+                      {searchQuery ? 'No HITL conversations match your search' : 'No conversations waiting for human intervention'}
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+            </>
+          )}
+        </div>
+      </Tabs>
     </div>
   );
 }
