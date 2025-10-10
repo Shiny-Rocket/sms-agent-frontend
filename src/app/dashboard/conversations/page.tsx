@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -30,8 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MessageSquareIcon, PhoneIcon, PlusIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { MessageSquareIcon, PhoneIcon, PlusIcon, SearchIcon } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
 import { listConversations, startConversation, type Conversation } from '@/lib/api/conversations';
 import { listAgents, type Agent } from '@/lib/api/agents';
 import Link from 'next/link';
@@ -40,15 +41,15 @@ import { useRouter } from 'next/navigation';
 export default function ConversationsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string>('');
   const [initialMessage, setInitialMessage] = useState<string>('');
 
   const { data: conversations, isLoading } = useQuery({
-    queryKey: ['conversations', statusFilter],
-    queryFn: () => listConversations(statusFilter === 'all' ? {} : { status: statusFilter }),
+    queryKey: ['conversations'],
+    queryFn: () => listConversations({}),
   });
 
   const { data: agents } = useQuery({
@@ -76,10 +77,34 @@ export default function ConversationsPage() {
     },
   });
 
-  const statusColors = {
-    active: 'bg-green-100 text-green-800',
-    completed: 'bg-gray-100 text-gray-800',
-    waiting_hitl: 'bg-yellow-100 text-yellow-800',
+  // Filter conversations based on search query
+  const filteredConversations = useMemo(() => {
+    if (!conversations) return [];
+    if (!searchQuery.trim()) return conversations;
+
+    const query = searchQuery.toLowerCase();
+    return conversations.filter(
+      (conversation) =>
+        conversation.conversationId.toLowerCase().includes(query) ||
+        conversation.agentId?.toString().toLowerCase().includes(query) ||
+        conversation.userPhone.includes(query) ||
+        conversation.agentPhone.includes(query) ||
+        conversation.status.toLowerCase().includes(query)
+    );
+  }, [conversations, searchQuery]);
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, string> = {
+      active: 'bg-green-100 text-green-800',
+      completed: 'bg-gray-100 text-gray-800',
+      waiting_hitl: 'bg-yellow-100 text-yellow-800',
+    };
+
+    return (
+      <Badge className={variants[status] || 'bg-gray-100 text-gray-800'}>
+        {status.replace('_', ' ')}
+      </Badge>
+    );
   };
 
   const handleStartConversation = () => {
@@ -179,92 +204,56 @@ export default function ConversationsPage() {
         </Dialog>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-2">
-        <button
-          onClick={() => setStatusFilter('all')}
-          className={`px-4 py-2 rounded-md text-sm font-medium ${
-            statusFilter === 'all'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setStatusFilter('active')}
-          className={`px-4 py-2 rounded-md text-sm font-medium ${
-            statusFilter === 'active'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Active
-        </button>
-        <button
-          onClick={() => setStatusFilter('completed')}
-          className={`px-4 py-2 rounded-md text-sm font-medium ${
-            statusFilter === 'completed'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Completed
-        </button>
-        <button
-          onClick={() => setStatusFilter('waiting_hitl')}
-          className={`px-4 py-2 rounded-md text-sm font-medium ${
-            statusFilter === 'waiting_hitl'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Waiting HITL
-        </button>
-      </div>
+      {/* Search and List */}
+      <div className="bg-white rounded-lg border">
+        <div className="p-4 border-b">
+          <div className="relative">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by conversation ID, agent ID, phone number, or status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
 
-      {/* Conversations List */}
-      <div className="rounded-md border">
         {isLoading ? (
           <div className="p-8 text-center">
             <p className="text-gray-500">Loading conversations...</p>
           </div>
-        ) : conversations && conversations.length > 0 ? (
+        ) : filteredConversations && filteredConversations.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User Phone</TableHead>
-                <TableHead>Agent</TableHead>
+                <TableHead>Conversation ID</TableHead>
+                <TableHead>Agent ID</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Messages</TableHead>
-                <TableHead>Cost</TableHead>
                 <TableHead>Started</TableHead>
+                <TableHead>Recent</TableHead>
+                <TableHead>Cost</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {conversations.map((conversation) => (
+              {filteredConversations.map((conversation) => (
                 <TableRow key={conversation._id}>
-                  <TableCell className="font-mono text-sm">
-                    {conversation.userPhone}
+                  <TableCell className="font-mono text-xs">
+                    {conversation.conversationId.slice(0, 8)}...
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {conversation.agentPhone}
+                  <TableCell className="font-mono text-xs">
+                    {conversation.agentId?.toString().slice(0, 8) || 'N/A'}
                   </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        statusColors[conversation.status]
-                      }`}
-                    >
-                      {conversation.status.replace('_', ' ')}
-                    </span>
-                  </TableCell>
+                  <TableCell>{getStatusBadge(conversation.status)}</TableCell>
                   <TableCell>{conversation.metadata.messageCount}</TableCell>
-                  <TableCell>${conversation.metadata.totalCost.toFixed(4)}</TableCell>
                   <TableCell>
                     {format(new Date(conversation.createdAt), 'MMM d, h:mm a')}
                   </TableCell>
+                  <TableCell className="text-sm text-gray-600">
+                    {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: true })}
+                  </TableCell>
+                  <TableCell>${conversation.metadata.totalCost.toFixed(4)}</TableCell>
                   <TableCell className="text-right">
                     <Link
                       href={`/dashboard/conversations/${conversation.conversationId}`}
@@ -284,8 +273,8 @@ export default function ConversationsPage() {
               No conversations found
             </h3>
             <p className="text-gray-600 mb-4">
-              {statusFilter !== 'all'
-                ? `No ${statusFilter} conversations at the moment`
+              {searchQuery
+                ? 'No conversations match your search'
                 : 'Start by creating an agent and sending some SMS messages'}
             </p>
           </div>
