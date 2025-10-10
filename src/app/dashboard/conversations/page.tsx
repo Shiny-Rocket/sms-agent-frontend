@@ -41,6 +41,7 @@ import { useRouter } from 'next/navigation';
 export default function ConversationsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
@@ -48,8 +49,8 @@ export default function ConversationsPage() {
   const [initialMessage, setInitialMessage] = useState<string>('');
 
   const { data: conversations, isLoading } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: () => listConversations({}),
+    queryKey: ['conversations', statusFilter],
+    queryFn: () => listConversations(statusFilter === 'all' ? {} : { status: statusFilter }),
   });
 
   const { data: agents } = useQuery({
@@ -204,13 +205,42 @@ export default function ConversationsPage() {
         </Dialog>
       </div>
 
+      {/* Status Filter Tabs */}
+      <div className="mb-6 flex gap-2">
+        <Button
+          variant={statusFilter === 'all' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('all')}
+        >
+          All
+        </Button>
+        <Button
+          variant={statusFilter === 'active' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('active')}
+        >
+          Active
+        </Button>
+        <Button
+          variant={statusFilter === 'completed' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('completed')}
+        >
+          Completed
+        </Button>
+        <Button
+          variant={statusFilter === 'waiting_hitl' ? 'default' : 'outline'}
+          onClick={() => setStatusFilter('waiting_hitl')}
+        >
+          Waiting HITL
+        </Button>
+      </div>
+
       {/* Search and List */}
       <div className="bg-white rounded-lg border">
         <div className="p-4 border-b">
           <div className="relative">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search by conversation ID, agent ID, phone number, or status..."
+              type="text"
+              placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
