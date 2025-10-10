@@ -330,11 +330,6 @@ export default function ConversationDetailPage() {
                           <span className="text-xs text-gray-400">
                             {format(new Date(message.timestamp), 'h:mm a')}
                           </span>
-                          {message.role === 'assistant' && message.tokens && (
-                            <span className="text-xs text-gray-400">
-                              TTS {message.tokens.input}ms
-                            </span>
-                          )}
                         </div>
                         <div className="pl-4 border-l-2 border-gray-200">
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
