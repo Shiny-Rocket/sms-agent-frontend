@@ -48,7 +48,7 @@ export default function ConversationsPage() {
 
   const { data: conversations, isLoading } = useQuery({
     queryKey: ['conversations', statusFilter],
-    queryFn: () => listConversations({ status: statusFilter }),
+    queryFn: () => listConversations(statusFilter === 'all' ? {} : { status: statusFilter }),
   });
 
   const { data: agents } = useQuery({
