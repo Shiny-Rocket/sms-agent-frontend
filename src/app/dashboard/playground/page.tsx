@@ -1,11 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { SendIcon, BotIcon, UserIcon } from 'lucide-react';
+import { listAgents, type Agent } from '@/lib/api/agents';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -21,6 +30,13 @@ export default function PlaygroundPage() {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { data: agents } = useQuery({
+    queryKey: ['agents'],
+    queryFn: () => listAgents({}),
+  });
+
+  const selectedAgent = agents?.find((a) => a.agentId === agentId || a._id === agentId);
 
   const pollForResponse = async (convId: string, retries = 10) => {
     for (let i = 0; i < retries; i++) {
@@ -149,16 +165,24 @@ export default function PlaygroundPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="agentId">Agent ID</Label>
-              <Input
-                id="agentId"
-                placeholder="Enter agent ID (UUID)"
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
-              />
-              <p className="text-xs text-gray-600">
-                The unique ID of the agent you want to test
-              </p>
+              <Label htmlFor="agentId">Agent</Label>
+              <Select value={agentId} onValueChange={setAgentId}>
+                <SelectTrigger id="agentId">
+                  <SelectValue placeholder="Select an agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  {agents?.map((agent) => (
+                    <SelectItem key={agent._id} value={agent.agentId || agent._id}>
+                      {agent.name} ({agent.phoneNumber})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedAgent && (
+                <p className="text-xs text-gray-600">
+                  ID: {selectedAgent.agentId || selectedAgent._id}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

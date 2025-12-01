@@ -4,6 +4,14 @@ import { apiClient, ApiSuccess } from './client';
  * Agents API
  */
 
+export interface AgentToolConfig {
+  enableToolCalling?: boolean; // Enable LLM tool calling (uses AgentExecutor instead of ChatBot)
+  enableMCPTools?: boolean; // Enable MCP tools (Doctor Search, DocuSeal, Google Maps) - default: true
+  enableSubworkflowTools?: boolean; // Enable subworkflow tools (questionnaire, address, user record) - default: true
+  mcpServers?: string[]; // Specific MCP servers to enable (default: all) - e.g., ['doctor-search', 'docuseal']
+  maxIterations?: number; // Max tool calling iterations before giving up - default: 10
+}
+
 export interface Agent {
   _id: string;
   agentId: string;
@@ -11,9 +19,11 @@ export interface Agent {
   phoneNumber: string;
   provider: 'telnyx' | 'vonage';
   systemPrompt: string;
+  model?: string;
   actions: AgentAction[];
   dataFields?: DataFieldDefinition[];
   promptVariables?: Record<string, string>;
+  toolConfig?: AgentToolConfig; // Tool calling configuration
   status: 'draft' | 'active' | 'paused' | 'archived';
   metadata: {
     totalConversations: number;
@@ -29,9 +39,11 @@ export interface AgentAction {
   id: string;
   type: 'URL_CALL' | 'STOP' | 'FORM_SUBMIT' | 'TRANSFER' | 'AGENT_CALL';
   name: string;
-  description?: string;
+  description?: string; // AI-facing instructions for when/how to use this tool
+  payloadTemplate?: string; // JSON template with [VARIABLES] for dynamic payloads
   condition?: string;
-  runOneTime?: boolean;
+  runOneTime?: boolean; // If true (default), action runs only once per conversation
+  enabled?: boolean | string; // Static boolean or dynamic template expression
   url?: string;
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
@@ -55,9 +67,11 @@ export interface CreateAgentRequest {
   phoneNumber: string;
   provider: 'telnyx' | 'vonage';
   systemPrompt: string;
+  model?: string;
   actions?: AgentAction[];
   dataFields?: DataFieldDefinition[];
   promptVariables?: Record<string, string>;
+  toolConfig?: AgentToolConfig;
   status?: 'draft' | 'active';
 }
 
@@ -66,9 +80,11 @@ export interface UpdateAgentRequest {
   phoneNumber?: string;
   provider?: 'telnyx' | 'vonage';
   systemPrompt?: string;
+  model?: string;
   actions?: AgentAction[];
   dataFields?: DataFieldDefinition[];
   promptVariables?: Record<string, string>;
+  toolConfig?: AgentToolConfig;
   status?: 'draft' | 'active' | 'paused' | 'archived';
 }
 

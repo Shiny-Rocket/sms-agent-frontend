@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAgent, updateAgent, deleteAgent, type Agent, type UpdateAgentRequest, getAgentWebhookUrl } from '@/lib/api/agents';
+import { listModels, type LLMModel } from '@/lib/api/models';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +38,11 @@ export default function AgentDetailPage() {
     queryFn: () => getAgent(agentId),
   });
 
+  const { data: models } = useQuery({
+    queryKey: ['models'],
+    queryFn: () => listModels(),
+  });
+
   const updateMutation = useMutation({
     mutationFn: (updates: UpdateAgentRequest) => updateAgent(agentId, updates),
     onSuccess: () => {
@@ -59,6 +65,7 @@ export default function AgentDetailPage() {
         phoneNumber: agent.phoneNumber,
         provider: agent.provider,
         systemPrompt: agent.systemPrompt,
+        model: agent.model || 'gemini-2.5-flash',
         status: agent.status,
       });
     }
@@ -436,17 +443,43 @@ export default function AgentDetailPage() {
                   <p className="text-sm text-gray-600">
                     If your chosen LLM is not available at the moment or something goes wrong, we will redirect the conversation to another LLM.
                   </p>
-                  <Select defaultValue="gemini-2.5-flash">
+                  <Select
+                    value={formData.model || 'gemini-2.5-flash'}
+                    onValueChange={(value) => setFormData({ ...formData, model: value })}
+                  >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                      <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                      <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                      <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (8m)</SelectItem>
-                      <SelectItem value="o1-preview">o1 Preview</SelectItem>
-                      <SelectItem value="o1-mini">o1 Mini</SelectItem>
+                      {models && models.length > 0 ? (
+                        <>
+                          {/* Group by provider */}
+                          {['openai', 'gemini', 'anthropic', 'groq'].map((provider) => {
+                            const providerModels = models.filter((m) => m.provider === provider);
+                            if (providerModels.length === 0) return null;
+                            return (
+                              <div key={provider}>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase">
+                                  {provider}
+                                </div>
+                                {providerModels.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.name || model.id}
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                          <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                          <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                          <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                          <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </CardContent>

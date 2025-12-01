@@ -4,9 +4,11 @@ import { apiClient } from './client';
  * Models API
  */
 
+export type LLMProvider = 'openai' | 'gemini' | 'groq' | 'anthropic';
+
 export interface LLMModel {
   id: string;
-  provider: 'openai' | 'gemini' | 'groq';
+  provider: LLMProvider;
   name: string;
   contextWindow?: number;
   inputCostPer1k?: number;
@@ -34,7 +36,7 @@ export async function listModels(): Promise<LLMModel[]> {
  * GET /api/v1/models/:provider
  */
 export async function listModelsByProvider(
-  provider: 'openai' | 'gemini' | 'groq'
+  provider: LLMProvider
 ): Promise<LLMModel[]> {
   const { data } = await apiClient.get<any>(`/models/${provider}`);
 
