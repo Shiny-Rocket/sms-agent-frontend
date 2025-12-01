@@ -5,9 +5,8 @@ import { apiClient, ApiSuccess } from './client';
  */
 
 export interface AgentToolConfig {
-  enableToolCalling?: boolean; // Enable LLM tool calling (uses AgentExecutor instead of ChatBot)
-  enableMCPTools?: boolean; // Enable MCP tools (Doctor Search, DocuSeal, Google Maps) - default: true
-  mcpServers?: string[]; // Specific MCP servers to enable (default: all) - e.g., ['doctor-search', 'docuseal']
+  enableToolCalling?: boolean; // Enable external tools (uses AgentExecutor instead of ChatBot)
+  mcpServers?: string[]; // Specific integrations to enable (default: all) - e.g., ['doctor-search', 'docuseal']
   maxIterations?: number; // Max tool calling iterations before giving up - default: 10
 }
 
