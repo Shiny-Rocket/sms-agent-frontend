@@ -1,9 +1,20 @@
 import { apiClient } from './client';
 
+export type PhaseId = 'lookup' | 'intro' | 'gather' | 'qualification' | 'documents' | 'closing';
+
+export interface ToolCallRecord {
+  tool: string;
+  arguments: Record<string, any>;
+  result: any;
+  duration?: number;
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  phase?: PhaseId;
+  toolCalls?: ToolCallRecord[];
 }
 
 export interface ConversationData {
@@ -18,6 +29,13 @@ export interface ConversationData {
   [key: string]: any;
 }
 
+export interface PhaseTransition {
+  from: PhaseId | null;
+  to: PhaseId;
+  timestamp: Date;
+  reason?: string;
+}
+
 export interface Conversation {
   _id: string;
   conversationId: string;
@@ -27,6 +45,12 @@ export interface Conversation {
   status: 'active' | 'completed' | 'waiting_hitl';
   messages: Message[];
   conversationData?: ConversationData;
+  // Phase-based conversation state
+  currentPhase?: PhaseId;
+  phaseHistory?: PhaseTransition[];
+  qualificationStatus?: 'pending' | 'qualified_ready' | 'disqualified_legal' | 'disqualified_fraud' | null;
+  qualificationReason?: string;
+  docusealStatus?: 'not_started' | 'pending' | 'sent' | 'signed' | 'error';
   metadata: {
     messageCount: number;
     llmTokensInput: number;
@@ -34,6 +58,7 @@ export interface Conversation {
     totalCost: number;
     avgResponseTime: number;
     triggeredActions: string[];
+    totalToolCalls?: number;
   };
   createdAt: Date;
   updatedAt: Date;

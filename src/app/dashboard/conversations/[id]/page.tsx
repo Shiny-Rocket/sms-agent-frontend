@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
-import { getConversation, getConversationTranscript, stopConversation, type Message } from '@/lib/api/conversations';
+import { getConversation, getConversationTranscript, stopConversation, type Message, type PhaseId, type ToolCallRecord } from '@/lib/api/conversations';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +30,13 @@ import {
   CheckIcon,
   StopCircleIcon,
   XIcon,
+  WorkflowIcon,
+  WrenchIcon,
+  ChevronRightIcon,
+  CheckCircle2Icon,
+  CircleDotIcon,
+  AlertCircleIcon,
+  FileTextIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -105,6 +112,56 @@ export default function ConversationDetailPage() {
       </Badge>
     );
   };
+
+  // Phase display helpers
+  const phaseLabels: Record<PhaseId, { label: string; description: string; icon: string }> = {
+    lookup: { label: 'Lookup', description: 'Loading context and user data', icon: '🔍' },
+    intro: { label: 'Introduction', description: 'Initial greeting and context setting', icon: '👋' },
+    gather: { label: 'Gather Details', description: 'Collecting required information', icon: '📝' },
+    qualification: { label: 'Qualification', description: 'Determining eligibility', icon: '✅' },
+    documents: { label: 'Documents', description: 'Sending e-sign documents', icon: '📄' },
+    closing: { label: 'Closing', description: 'Completing the conversation', icon: '🏁' },
+  };
+
+  const getPhaseBadge = (phase: PhaseId | undefined) => {
+    if (!phase) return null;
+    const phaseInfo = phaseLabels[phase];
+    return (
+      <Badge variant="outline" className="font-normal">
+        <span className="mr-1">{phaseInfo.icon}</span>
+        {phaseInfo.label}
+      </Badge>
+    );
+  };
+
+  const getQualificationBadge = (status: string | undefined | null) => {
+    if (!status) return null;
+    const variants: Record<string, { color: string; label: string }> = {
+      pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+      qualified_ready: { color: 'bg-green-100 text-green-800', label: 'Qualified' },
+      disqualified_legal: { color: 'bg-red-100 text-red-800', label: 'Disqualified (Legal)' },
+      disqualified_fraud: { color: 'bg-red-100 text-red-800', label: 'Disqualified (Fraud)' },
+    };
+    const variant = variants[status] || variants.pending;
+    return <Badge className={variant.color}>{variant.label}</Badge>;
+  };
+
+  const getDocusealBadge = (status: string | undefined) => {
+    if (!status || status === 'not_started') return null;
+    const variants: Record<string, { color: string; label: string }> = {
+      pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Doc Pending' },
+      sent: { color: 'bg-blue-100 text-blue-800', label: 'Doc Sent' },
+      signed: { color: 'bg-green-100 text-green-800', label: 'Doc Signed' },
+      error: { color: 'bg-red-100 text-red-800', label: 'Doc Error' },
+    };
+    const variant = variants[status] || { color: 'bg-gray-100 text-gray-800', label: status };
+    return <Badge className={variant.color}>{variant.label}</Badge>;
+  };
+
+  // Count total tool calls across all messages
+  const totalToolCalls = conversation?.messages.reduce((count, msg) => {
+    return count + (msg.toolCalls?.length || 0);
+  }, 0) || 0;
 
   if (isLoading) {
     return (
@@ -229,6 +286,22 @@ export default function ConversationDetailPage() {
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="transcription">Transcription</TabsTrigger>
+              <TabsTrigger value="phase">
+                <WorkflowIcon className="h-4 w-4 mr-1" />
+                Phase
+                {conversation.currentPhase && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {phaseLabels[conversation.currentPhase]?.label || conversation.currentPhase}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="tools">
+                <WrenchIcon className="h-4 w-4 mr-1" />
+                Tools
+                {totalToolCalls > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">{totalToolCalls}</Badge>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="client-data">Client data</TabsTrigger>
             </TabsList>
 
@@ -339,6 +412,287 @@ export default function ConversationDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Phase Tab */}
+            <TabsContent value="phase" className="space-y-4">
+              {/* Current Phase Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <WorkflowIcon className="h-5 w-5" />
+                    Current Phase
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {conversation.currentPhase ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl">
+                          {phaseLabels[conversation.currentPhase]?.icon || '🔄'}
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            {phaseLabels[conversation.currentPhase]?.label || conversation.currentPhase}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {phaseLabels[conversation.currentPhase]?.description || ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Qualification and DocuSeal Status */}
+                      <div className="flex gap-2 flex-wrap">
+                        {getQualificationBadge(conversation.qualificationStatus)}
+                        {getDocusealBadge(conversation.docusealStatus)}
+                      </div>
+
+                      {conversation.qualificationReason && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          <p className="text-sm text-yellow-800">
+                            <strong>Reason:</strong> {conversation.qualificationReason}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <WorkflowIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>Phase information not available</p>
+                      <p className="text-xs mt-1">This conversation may not use the phase-based architecture</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Phase Timeline */}
+              {conversation.phaseHistory && conversation.phaseHistory.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Phase History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {conversation.phaseHistory.map((transition, index) => {
+                        const isLast = index === conversation.phaseHistory!.length - 1;
+                        const toPhase = phaseLabels[transition.to];
+                        return (
+                          <div key={index} className="flex items-start gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                                isLast ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {toPhase?.icon || '🔄'}
+                              </div>
+                              {!isLast && <div className="w-0.5 h-8 bg-gray-200 mt-1" />}
+                            </div>
+                            <div className="flex-1 pb-4">
+                              <div className="flex items-center gap-2">
+                                {transition.from && (
+                                  <>
+                                    <Badge variant="outline" className="text-xs">
+                                      {phaseLabels[transition.from]?.label || transition.from}
+                                    </Badge>
+                                    <ChevronRightIcon className="h-3 w-3 text-gray-400" />
+                                  </>
+                                )}
+                                <Badge variant={isLast ? 'default' : 'secondary'} className="text-xs">
+                                  {toPhase?.label || transition.to}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {format(new Date(transition.timestamp), 'MMM d, h:mm:ss a')}
+                              </p>
+                              {transition.reason && (
+                                <p className="text-xs text-gray-600 mt-1">{transition.reason}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Phase Flow Visualization */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Phase Flow</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between gap-1 overflow-x-auto pb-2">
+                    {(['lookup', 'intro', 'gather', 'qualification', 'documents', 'closing'] as PhaseId[]).map((phaseId, index) => {
+                      const phaseInfo = phaseLabels[phaseId];
+                      const isCurrentPhase = conversation.currentPhase === phaseId;
+                      const isPastPhase = conversation.phaseHistory?.some(t => t.to === phaseId);
+
+                      return (
+                        <div key={phaseId} className="flex items-center">
+                          <div className={`flex flex-col items-center p-2 rounded-lg min-w-[80px] ${
+                            isCurrentPhase
+                              ? 'bg-blue-100 border-2 border-blue-500'
+                              : isPastPhase
+                                ? 'bg-green-50 border border-green-200'
+                                : 'bg-gray-50 border border-gray-200'
+                          }`}>
+                            <div className="text-xl mb-1">{phaseInfo.icon}</div>
+                            <span className={`text-xs font-medium ${
+                              isCurrentPhase ? 'text-blue-700' : isPastPhase ? 'text-green-700' : 'text-gray-500'
+                            }`}>
+                              {phaseInfo.label}
+                            </span>
+                            {isCurrentPhase && (
+                              <CircleDotIcon className="h-3 w-3 text-blue-500 mt-1" />
+                            )}
+                            {isPastPhase && !isCurrentPhase && (
+                              <CheckCircle2Icon className="h-3 w-3 text-green-500 mt-1" />
+                            )}
+                          </div>
+                          {index < 5 && (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-300 mx-1 flex-shrink-0" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tools Tab */}
+            <TabsContent value="tools" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <WrenchIcon className="h-5 w-5" />
+                    Tool Call History
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {totalToolCalls > 0 ? (
+                    <div className="space-y-4">
+                      {conversation.messages.map((message, msgIndex) => {
+                        if (!message.toolCalls || message.toolCalls.length === 0) return null;
+
+                        return (
+                          <div key={msgIndex} className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span>Message #{msgIndex + 1}</span>
+                              <span>•</span>
+                              <span>{format(new Date(message.timestamp), 'h:mm:ss a')}</span>
+                              {message.phase && (
+                                <>
+                                  <span>•</span>
+                                  {getPhaseBadge(message.phase)}
+                                </>
+                              )}
+                            </div>
+                            {message.toolCalls.map((toolCall, toolIndex) => (
+                              <div
+                                key={toolIndex}
+                                className="border rounded-lg p-3 bg-gray-50"
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <WrenchIcon className="h-4 w-4 text-purple-500" />
+                                    <span className="font-mono text-sm font-medium">
+                                      {toolCall.tool}
+                                    </span>
+                                  </div>
+                                  {toolCall.duration && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {toolCall.duration}ms
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {/* Arguments */}
+                                {Object.keys(toolCall.arguments || {}).length > 0 && (
+                                  <div className="mb-2">
+                                    <p className="text-xs text-gray-500 mb-1">Arguments:</p>
+                                    <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
+                                      {JSON.stringify(toolCall.arguments, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+
+                                {/* Result */}
+                                {toolCall.result !== undefined && (
+                                  <div>
+                                    <p className="text-xs text-gray-500 mb-1">Result:</p>
+                                    <pre className="text-xs bg-white p-2 rounded border overflow-x-auto max-h-32">
+                                      {typeof toolCall.result === 'string'
+                                        ? toolCall.result
+                                        : JSON.stringify(toolCall.result, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <WrenchIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No tool calls in this conversation</p>
+                      <p className="text-xs mt-1">Tool calls appear when the agent uses external tools like Doctor Search, DocuSeal, etc.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Tool Summary */}
+              {totalToolCalls > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Tool Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Total Tool Calls</p>
+                        <p className="text-2xl font-bold">{totalToolCalls}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Unique Tools</p>
+                        <p className="text-2xl font-bold">
+                          {new Set(
+                            conversation.messages
+                              .flatMap(m => m.toolCalls || [])
+                              .map(tc => tc.tool)
+                          ).size}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Tool breakdown */}
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-600 mb-2">Tools Used:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Array.from(
+                          new Set(
+                            conversation.messages
+                              .flatMap(m => m.toolCalls || [])
+                              .map(tc => tc.tool)
+                          )
+                        ).map(tool => {
+                          const count = conversation.messages
+                            .flatMap(m => m.toolCalls || [])
+                            .filter(tc => tc.tool === tool).length;
+                          return (
+                            <Badge key={tool} variant="secondary" className="font-mono">
+                              {tool} ({count})
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* Client Data Tab */}

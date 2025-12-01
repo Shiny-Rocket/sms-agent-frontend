@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAgent, updateAgent, deleteAgent, type Agent, type UpdateAgentRequest, getAgentWebhookUrl } from '@/lib/api/agents';
+import { getAgent, updateAgent, deleteAgent, type Agent, type UpdateAgentRequest, type AgentToolConfig, getAgentWebhookUrl } from '@/lib/api/agents';
 import { listModels, type LLMModel } from '@/lib/api/models';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeftIcon, CopyIcon, TrashIcon, CheckIcon } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeftIcon, CopyIcon, TrashIcon, CheckIcon, Settings2Icon, WrenchIcon, ServerIcon } from 'lucide-react';
 import Link from 'next/link';
 import { getErrorMessage } from '@/lib/api/client';
 
@@ -67,6 +68,12 @@ export default function AgentDetailPage() {
         systemPrompt: agent.systemPrompt,
         model: agent.model || 'gemini-2.5-flash',
         status: agent.status,
+        toolConfig: agent.toolConfig || {
+          enableToolCalling: false,
+          enableMCPTools: true,
+          mcpServers: [],
+          maxIterations: 10,
+        },
       });
     }
   }, [agent]);
@@ -485,6 +492,159 @@ export default function AgentDetailPage() {
                 </CardContent>
               </Card>
 
+              {/* Tool Configuration */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Settings2Icon className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <CardTitle>Tool Configuration</CardTitle>
+                      <CardDescription>
+                        Configure AI tool calling capabilities for this agent
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Enable Tool Calling */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <WrenchIcon className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <h4 className="font-medium">Enable Tool Calling</h4>
+                        <p className="text-sm text-gray-500">
+                          Allow the agent to use external tools via the AgentExecutor (required for MCP tools)
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.toolConfig?.enableToolCalling ?? false}
+                      onCheckedChange={(checked) =>
+                        setFormData({
+                          ...formData,
+                          toolConfig: {
+                            ...formData.toolConfig,
+                            enableToolCalling: checked,
+                          },
+                        })
+                      }
+                    />
+                  </div>
+
+                  {/* Enable MCP Tools - Only visible when tool calling is enabled */}
+                  {formData.toolConfig?.enableToolCalling && (
+                    <>
+                      <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <ServerIcon className="h-5 w-5 text-purple-500" />
+                          <div>
+                            <h4 className="font-medium">Enable MCP Tools</h4>
+                            <p className="text-sm text-gray-500">
+                              Enable Model Context Protocol tools (Doctor Search, DocuSeal, Google Maps)
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={formData.toolConfig?.enableMCPTools !== false}
+                          onCheckedChange={(checked) =>
+                            setFormData({
+                              ...formData,
+                              toolConfig: {
+                                ...formData.toolConfig,
+                                enableMCPTools: checked,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+
+                      {/* MCP Server Selection - Only visible when MCP tools enabled */}
+                      {formData.toolConfig?.enableMCPTools !== false && (
+                        <div className="p-4 border rounded-lg bg-gray-50">
+                          <div className="flex items-center gap-2 mb-3">
+                            <ServerIcon className="h-4 w-4 text-gray-500" />
+                            <h4 className="font-medium">MCP Servers</h4>
+                          </div>
+                          <p className="text-sm text-gray-500 mb-4">
+                            Select which MCP servers this agent can access. Leave empty to enable all available servers.
+                          </p>
+                          <div className="grid grid-cols-2 gap-3">
+                            {['doctor-search', 'docuseal', 'google-maps', 'mongodb', 'n8n', 'playwright'].map((server) => (
+                              <label
+                                key={server}
+                                className="flex items-center gap-2 p-2 border rounded hover:bg-white cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="rounded"
+                                  checked={formData.toolConfig?.mcpServers?.includes(server) ?? false}
+                                  onChange={(e) => {
+                                    const currentServers = formData.toolConfig?.mcpServers || [];
+                                    const newServers = e.target.checked
+                                      ? [...currentServers, server]
+                                      : currentServers.filter((s) => s !== server);
+                                    setFormData({
+                                      ...formData,
+                                      toolConfig: {
+                                        ...formData.toolConfig,
+                                        mcpServers: newServers,
+                                      },
+                                    });
+                                  }}
+                                />
+                                <span className="text-sm font-mono">{server}</span>
+                              </label>
+                            ))}
+                          </div>
+                          {(formData.toolConfig?.mcpServers?.length ?? 0) === 0 && (
+                            <p className="text-xs text-amber-600 mt-2">
+                              No servers selected = all servers enabled
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Max Iterations */}
+                      <div className="p-4 border rounded-lg bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">Max Tool Iterations</h4>
+                            <p className="text-sm text-gray-500">
+                              Maximum number of tool calling loops before forcing a response
+                            </p>
+                          </div>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={50}
+                            className="w-20"
+                            value={formData.toolConfig?.maxIterations ?? 10}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                toolConfig: {
+                                  ...formData.toolConfig,
+                                  maxIterations: parseInt(e.target.value) || 10,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {!formData.toolConfig?.enableToolCalling && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-blue-800">
+                        Tool calling is disabled. The agent will use the simple ChatBot for basic LLM responses.
+                        Enable tool calling to allow the agent to use external tools like Doctor Search, DocuSeal, and more.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Backup LLM Configuration */}
               <Card>
                 <CardHeader>
@@ -634,27 +794,6 @@ export default function AgentDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Custom MCP Servers */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Custom MCP Servers</CardTitle>
-                      <CardDescription>
-                        Provide the agent with Model Context Protocol servers to extend its capabilities.
-                      </CardDescription>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      Add Server
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-gray-500 border-2 border-dashed rounded-lg">
-                    <p>No MCP servers configured yet</p>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </form>
         </TabsContent>
