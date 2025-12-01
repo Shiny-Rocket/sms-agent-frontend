@@ -13,6 +13,7 @@ import {
   BookIcon,
   SettingsIcon,
   LogOutIcon,
+  PlugIcon,
 } from 'lucide-react';
 import { logout, getStoredUser } from '@/lib/api/auth';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Conversations', href: '/dashboard/conversations', icon: MessageSquareIcon },
   { name: 'Playground', href: '/dashboard/playground', icon: PlayIcon },
   { name: 'Phone Numbers', href: '/dashboard/phone-numbers', icon: PhoneIcon },
+  { name: 'Integrations', href: '/dashboard/integrations', icon: PlugIcon },
   { name: 'Tools', href: '/dashboard/tools', icon: WrenchIcon },
   { name: 'Knowledge Base', href: '/dashboard/knowledge', icon: BookIcon },
   { name: 'Settings', href: '/dashboard/settings', icon: SettingsIcon },
